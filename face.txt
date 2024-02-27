@@ -1,0 +1,59 @@
+##face recognition attedence system code using esp32 and camera module.
+
+import cv2
+import numpy as np
+import openpyxl
+from openpyxl import Workbook
+import os
+
+# Load pre-trained face detection model
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+# Load pre-trained face recognition model
+recognizer = cv2.face.LBPHFaceRecognizer_create()
+recognizer.read('trainer/trainer.yml')
+
+# Load attendance workbook
+attendance_file = "attendance.xlsx"
+if os.path.exists(attendance_file):
+    wb = openpyxl.load_workbook(attendance_file)
+else:
+    wb = Workbook()
+    wb.save(attendance_file)
+ws = wb.active
+
+# Function to mark attendance
+def mark_attendance(id):
+    name = "Person" + str(id)
+    if name not in ws[1]:
+        ws.append([name, "Present"])
+        print(f"{name} marked present.")
+        wb.save(attendance_file)
+
+# Capture video from webcam
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5)
+
+    for (x, y, w, h) in faces:
+        # Recognize faces
+        id, confidence = recognizer.predict(gray[y:y+h, x:x+w])
+
+        if confidence < 100:
+            mark_attendance(id)
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+            cv2.putText(frame, f"Confidence: {round(100 - confidence)}%", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        else:
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
+            cv2.putText(frame, "Unknown", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+
+    cv2.imshow('Face Recognition Attendance System', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
